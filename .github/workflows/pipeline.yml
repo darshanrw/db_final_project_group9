@@ -6,7 +6,8 @@ on:
       - main
 
 jobs:
-  build:
+  # Stage 1: Environment Setup
+  environment-setup:
     runs-on: ubuntu-latest
 
     steps:
@@ -21,18 +22,70 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install pymysql mysql-connector-python
 
-      - name: Database Operations
+  # Stage 2: Initial Schema Deployment
+  initial-schema-deployment:
+    runs-on: ubuntu-latest
+    needs: environment-setup  # This job will run after environment-setup job
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Deploy Initial Schema
         env:
           DB_HOST: ${{ secrets.DB_HOST }}
           DB_USER: ${{ secrets.DB_USER }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           DB_NAME: ${{ secrets.DB_NAME }}
         run: |
-          mysql -h $DB_HOST -u $DB_USER -p$DB_PASSWORD $DB_NAME < sql/table_creation.sql
+          mysql -h $DB_HOST -u $DB_USER -p$DB_PASSWORD $DB_NAME < sql/initial_schema.sql
+
+  # Stage 3: Schema Update
+  schema-update:
+    runs-on: ubuntu-latest
+    needs: initial-schema-deployment  # This job will run after initial-schema-deployment job
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Apply Schema Update
+        env:
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+        run: |
           mysql -h $DB_HOST -u $DB_USER -p$DB_PASSWORD $DB_NAME < sql/schema_update.sql
+
+  # Stage 4: Data Seeding
+  data-seeding:
+    runs-on: ubuntu-latest
+    needs: schema-update  # This job will run after schema-update job
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Seed Sample Data
+        env:
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+        run: |
           mysql -h $DB_HOST -u $DB_USER -p$DB_PASSWORD $DB_NAME < sql/data_seed.sql
 
-      - name: Run Concurrent Queries
+  # Stage 5: Concurrent Query Execution
+  concurrent-query-execution:
+    runs-on: ubuntu-latest
+    needs: data-seeding  # This job will run after data-seeding job
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Execute Concurrent Queries
         env:
           DB_HOST: ${{ secrets.DB_HOST }}
           DB_USER: ${{ secrets.DB_USER }}
